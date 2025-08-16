@@ -1,14 +1,14 @@
 # MCP Weather Server for n8n
 
-A simple Model Context Protocol (MCP) server that provides weather information via OpenWeather API, designed to work with n8n's MCP client.
+A simple Model Context Protocol (MCP) server that provides weather information via OpenWeather API, designed to work with n8n's MCP client. This server uses the `fastmcp` library for easy MCP implementation.
 
 ## Features
 
 - 🌤️ Get current weather for any city
+- 📅 Get 5-day weather forecast
 - 📡 Server-Sent Events (SSE) for real-time communication
 - 🔌 MCP protocol compatible
-- 🚀 FastAPI-based REST API
-- 🧪 Built-in testing tools
+- 🚀 Simple and lightweight implementation
 
 ## Setup
 
@@ -20,62 +20,55 @@ pip install -r requirements.txt
 
 ### 2. Configure OpenWeather API Key
 
-The server already has an API key configured, but you can set your own:
+You must set your OpenWeather API key as an environment variable:
 
 ```bash
 export OPENWEATHER_API_KEY="your_api_key_here"
 ```
 
+**Note**: The API key is required and the server will not start without it.
+
 ### 3. Run the Server
 
 ```bash
-python mcp_weather_server.py
+python mcp_openweather_server.py
 ```
 
-The server will start on port 8000 by default. You can change this by setting the `PORT` environment variable.
+The server will start on port 8000 using SSE (Server-Sent Events) transport.
 
-## API Endpoints
+## Available Tools
 
-- `GET /` - Server status
-- `GET /tools` - List available MCP tools
-- `GET /server-info` - Server information
-- `GET /sse?client_id=<id>` - SSE connection for MCP client
-- `POST /call` - Call a tool
-- `GET /test` - Test endpoint
+The server provides two MCP tools:
 
-## Testing
+### 1. `get_current_weather`
 
-### Test the Server
+Get current weather conditions for a city.
 
-```bash
-python test_mcp_client.py
-```
+**Parameters:**
+- `city` (string, required): The name of the city (e.g., "London")
+- `units` (string, optional): Temperature units - "metric" (Celsius), "imperial" (Fahrenheit), or "standard" (Kelvin). Defaults to "metric".
 
-This will test all the endpoints and verify the MCP connection is working.
+**Returns:**
+- City name
+- Temperature
+- Feels like temperature
+- Weather condition description
+- Humidity percentage
+- Wind speed
+- Data source
 
-### Manual Testing
+### 2. `get_weather_forecast`
 
-1. **Check server status:**
-   ```bash
-   curl http://localhost:8000/
-   ```
+Get 5-day weather forecast for a city.
 
-2. **List tools:**
-   ```bash
-   curl http://localhost:8000/tools
-   ```
+**Parameters:**
+- `city` (string, required): The name of the city (e.g., "London")
+- `units` (string, optional): Temperature units - "metric" (Celsius), "imperial" (Fahrenheit), or "standard" (Kelvin). Defaults to "metric".
 
-3. **Test SSE connection:**
-   ```bash
-   curl "http://localhost:8000/sse?client_id=test"
-   ```
-
-4. **Call a tool:**
-   ```bash
-   curl -X POST http://localhost:8000/call \
-     -H "Content-Type: application/json" \
-     -d '{"client_id":"test","tool":"get_current_weather","args":{"location":"London"}}'
-   ```
+**Returns:**
+- City name
+- Forecast data for the next 24 hours (3-hour intervals)
+- Data source
 
 ## n8n Integration
 
@@ -93,78 +86,78 @@ npm install n8n-nodes-mcp-client
 2. Configure the connection:
    - **Server URL**: `http://localhost:8000`
    - **Client ID**: `n8n` (or any unique identifier)
-   - **Tools**: The node should automatically discover available tools
+   - **Transport**: SSE (Server-Sent Events)
 
-### 3. Use the Weather Tool
+### 3. Use the Weather Tools
 
-The MCP client will provide access to the `get_current_weather` tool with:
-- **Input**: `location` (string) - City name
-- **Output**: Weather information including temperature, humidity, wind speed, etc.
+The MCP client will automatically discover both available tools:
+- `get_current_weather` - for current weather conditions
+- `get_weather_forecast` - for weather forecasts
 
-## MCP Protocol Details
+## Technical Details
 
-The server implements the Model Context Protocol with:
+### Architecture
 
-- **Tool Discovery**: Tools are exposed via `/tools` endpoint
-- **SSE Communication**: Real-time updates via Server-Sent Events
-- **Tool Execution**: Tools are called via `/call` endpoint
-- **Error Handling**: Comprehensive error responses with debugging information
+- **Framework**: Uses `fastmcp` library for MCP implementation
+- **Transport**: Server-Sent Events (SSE) over HTTP
+- **Port**: 8000 (configurable in code)
+- **API**: OpenWeatherMap API v2.5
+
+### Error Handling
+
+The server includes error handling for:
+- Missing API key
+- Failed API requests
+- Invalid responses
+
+### Dependencies
+
+- `fastmcp`: MCP server implementation
+- `requests`: HTTP client for API calls
+- `os`: Environment variable handling
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Connection Refused**: Make sure the server is running on the correct port
-2. **CORS Errors**: The server includes CORS headers, but check your n8n configuration
-3. **Tool Not Found**: Verify the tool name matches exactly: `get_current_weather`
-4. **Client Not Connected**: Ensure the SSE connection is established before calling tools
+1. **Missing API Key**: Ensure `OPENWEATHER_API_KEY` environment variable is set
+2. **Port Already in Use**: Change the port in the code if 8000 is occupied
+3. **API Rate Limits**: OpenWeather API has rate limits for free tier accounts
 
-### Debug Mode
+### Testing
 
-The server includes extensive logging. Check the console output for:
-- `[SSE]` - Server-Sent Events connection logs
-- `[CALL]` - Tool execution logs
-
-### Testing Connection
-
-Use the test script to verify each component:
-
-```bash
-python test_mcp_client.py
-```
-
-This will test:
-- Server connectivity
-- Tool discovery
-- SSE connection
-- Tool execution
+You can test the server by running it and checking the console output. The server will show connection logs and any errors that occur.
 
 ## Development
 
 ### Adding New Tools
 
-To add new tools, modify the `TOOLS` list in `mcp_weather_server.py`:
+To add new tools, use the `@mcp.tool` decorator:
 
 ```python
-TOOLS = [
-    {
-        "name": "your_tool_name",
-        "description": "Tool description",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "param_name": {
-                    "type": "string",
-                    "description": "Parameter description"
-                }
-            },
-            "required": ["param_name"]
-        }
-    }
-]
+@mcp.tool
+def your_tool_name(param1: str, param2: int = 0) -> dict:
+    """
+    Tool description.
+    
+    Args:
+        param1: Description of param1
+        param2: Description of param2
+        
+    Returns:
+        Tool result
+    """
+    # Tool implementation
+    return {"result": "success"}
 ```
 
-Then implement the tool logic in the `call_tool` function.
+### Modifying Server Configuration
+
+To change the server configuration, modify the `mcp.run()` call at the bottom of the file:
+
+```python
+mcp.run(transport="sse", port=8000)
+```
 
 ## License
 
